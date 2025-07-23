@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Digital Defense Challenge</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="welcome">
+    <h1 id="welcome-title">Welcome to the Digital Defense Challenge</h1>
+    <p>Your PSYOP unit has arrived near the frontlines. <span id="welcome-description-1">Each scenario presents cyber threats you must neutralize. Choose the right countermeasures. Too few — and you're vulnerable. Too many — and you lose effectiveness.</span></p>
+    <p><span id="welcome-description-2">Each correct action earns points. Each unnecessary one deducts 5%. Choose wisely!</span></p>
+    <button class="submit-btn" onclick="startGame()" id="start-button">Start Mission</button>
+</div>
+
+<div class="scenario" id="scenarioContainer"></div>
+<div class="result" id="resultContainer"></div>
+<div id="actionResults" style="display:none; margin: 20px auto; padding: 10px; border: 2px solid #00f6ff; background: rgba(0,0,0,0.8); border-radius: 8px; position: relative; max-width: 700px;">
+  <button onclick='closeActionResults()' style='position: absolute; top: 5px; right: 10px; background: red; color: white; border: none; border-radius: 4px; cursor: pointer;'>X</button>
+  <div id="actionDetails"></div>
+</div>
+<div id="threatSummaryBox" style="display:none; margin: 20px auto; padding: 10px; border: 2px solid #ff4d00; background: rgba(0,0,0,0.85); border-radius: 8px; position: relative; max-width: 700px;">
+  <button onclick='closeThreatSummary()' style='position: absolute; top: 5px; right: 10px; background: red; color: white; border: none; border-radius: 4px; cursor: pointer;'>X</button>
+  <div id="threatSummary"></div>
+</div>
+<div class="final-result" id="finalContainer"></div>
+
+<script>
+  let scenarioContainer, resultContainer, finalContainer, actionDetails, threatSummary;
+  let currentScenario = 0;
+  let totalScore = 0;
+
+  const scenarios = [
+      {
+        text: "The Friendly Gatekeeper: Upon arrival, the PSYOP team is greeted by a talkative local host offering to help with Wi-Fi. The router sits exposed in the hallway. Suspiciously, the host seems overly eager and lingers during setup. A civilian car is parked across the street with a tinted windshield and occasional phone flashes.",
+        correct: ["Use travel router", "Conduct RF scan", "Disable auto-connect", "MAC randomization", "Place the router in a secure interior room"],
+        choices: ["Use travel router", "Conduct RF scan", "Disable auto-connect", "MAC randomization", "Place the router in a secure interior room", "Enable Bluetooth", "Join local Discord", "Accept default SSID", "Allow access to the network to the select few"],
+		threat: "Potential for a rogue access point or compromised router. Exposure to man-in-the-middle attacks, packet sniffing, or DNS spoofing, Locals may be collaborating with adversaries and using Wi-Fi to gather metadata or track traffic patterns, Risk of devices being tracked or fingerprinted based on MACs",
+	  },
+	  {
+		text: "Eyes on the Sky: The Starlink dish reboots intermittently. Multiple locals linger nearby with smartphones. Team lead notes that thermal drone footage of similar dishes being targeted was shared online recently.",
+		correct: ["Conceal Starlink terminal with camo tarp or mesh", "Place terminal indoors or in attic", "Use UPS - uninterruptible power supply", "Perform RF scan for jamming or anomalies", "Restrict Starlink LAN access with firewall/MAC rules", "Tunnel outbound traffic via VPN at the router level"],
+		choices: ["Conceal Starlink terminal with camo tarp or mesh", "Place terminal indoors or in attic", "Use UPS - uninterruptible power supply", "Perform RF scan for jamming or anomalies", "Restrict Starlink LAN access with firewall/MAC rules", "Tunnel outbound traffic via VPN at the router level", "Reset Starlink terminal to factory settings", "Deploy manned guard post at the dish", "Install packet sniffers on all LAN devices", "Activate Bluetooth tethering", "Disable Starlink firmware updates", "Run continuous thermal scans from inside the building"],
+		threat: "Physical tampering or sabotage of the Starlink terminal. RF jamming/interference targeting the satellite link. Thermal visibility could make the dish a target for loitering munitions or indirect fire. Locals photographing gear could feed targeting data or perform visual recon. Cyber intrusion risk if router settings are misconfigured or Starlink is accessed via LAN.",
+	  },
+	  {
+		text: "Shared House: The rental property shares its infrastructure with the landlord, whose apartment is downstairs. The landlord jokes about “seeing your browsing history.” Across the alley, someone appears to be recording the building regularly.",
+		correct: ["Use VPN at router level", "Refuse use of shared network","Deploy secure router/hotspot", "Enable MAC address randomization", "Encrypt DNS traffic DoH/DoT", "Obscure interior visibility with blackout curtains or thermal film", "Conduct Wi-Fi scan for unauthorized devices", "Deploy VLANs or device isolation, if own router is used"],
+		choices: ["Use VPN at router level", "Refuse use of shared network","Deploy secure router/hotspot", "Enable MAC address randomization", "Encrypt DNS traffic DoH/DoT", "Obscure interior visibility with blackout curtains or thermal film", "Conduct Wi-Fi scan for unauthorized devices", "Deploy VLANs or device isolation, if own router is used", "Change physical wiring in the building", "Bribe the landlord to stay out of the network", "Install directional jammers to disrupt neighbors' Wi-Fi", "Force factory reset on landlord’s router", "Reconfigure neighbor’s surveillance cameras", "Rotate team to a new house every 24 hours"],
+		threat: "Shared network = compromised perimeter — landlord can access traffic, MACs, timestamps. Lack of network segmentation exposes team devices to eavesdropping and injection. Passive surveillance from across the alley may assist with targeting or identify personnel.Civilian admin has full router access; potential for DNS spoofing, packet logging, or inserting backdoors. Visual data leakage through windows (screen glow, silhouettes, reflections).",
+	  },
+	  {
+		text: "Casino Royale: A PSYOP team member visits a local gambling den during off-hours and connects to open Wi-Fi. A few days later, DNS anomalies occur across the team’s network. Footage of the team member sitting at the bar is posted on Telegram.",
+		correct: ["Issue burner/restricted-use devices for off-duty or recon", "Forensically isolate and analyze the compromised device", "Enforce SOP: No connection to unauthorized networks", "Rotate MAC and device identifiers regularly", "Conduct OSINT sweep for leaked content", "Purge/reimage affected device or burn it", "Implement local DNS blackholing or Pi-hole"],
+		choices: ["Confiscate and inspect all local Wi-Fi networks", "Disable Wi-Fi across all team devices permanently", "Deploy full packet-capture on team LAN 24/7", "Punish or isolate the individual without corrective action", "Install spyware on the team member’s device “just in case”","Issue burner/restricted-use devices for off-duty or recon", "Forensically isolate and analyze the compromised device", "Enforce SOP: No connection to unauthorized networks", "Rotate MAC and device identifiers regularly", "Conduct OSINT sweep for leaked content", "Purge/reimage affected device or burn it", "Implement local DNS blackholing or Pi-hole"],
+		threat: "Use of public/open Wi-Fi exposes the device to MITM, malware injection, and session hijacking. Device may be compromised, serving as a pivot point or data exfiltration tool. Footage leak poses an OPSEC risk: confirms presence, reveals morale/state, provides material for narrative warfare. Metadata from device (hostname, MAC, browsing history) may have been logged or used. Behavioral profiling or blackmail threat if compromised content is used by adversaries.",
+	  },
+	  {
+		text: "Ghost Apps: A local vendor recommends a popular app that “helps navigate town.” One team member sideloads the APK. Hours later, strange outbound connections are detected on the network. The app has GPS overlays and permission requests.",
+		correct: ["Disallow sideloading and restrict app installs to verified sources", "Use offline maps and navigation tools", "Isolate or destroy compromised device", "Analyze APK in an air-gapped sandbox environment", "Block suspect outbound IPs/domains via DNS sinkhole", "Rotate device identifiers and reset credentials post-exposure", "Log and audit all app installs across team devices"],
+		choices: ["Ban use of all mobile apps", "Jam all mobile signals in vicinity", "Install government spyware on all team devices “for monitoring”", "Erase and reflash the entire team’s phones", "Physically raid the vendor’s shop", "Switch to printed maps only", "Disallow sideloading and restrict app installs to verified sources", "Use offline maps and navigation tools", "Isolate or destroy compromised device", "Analyze APK in an air-gapped sandbox environment", "Block suspect outbound IPs/domains via DNS sinkhole", "Rotate device identifiers and reset credentials post-exposure", "Log and audit all app installs across team devices"],
+		threat: "Sideloaded apps (especially APKs from untrusted sources) may contain trojans, spyware, or beaconing functions. App may request excessive permissions: microphone, GPS, camera, storage. Outbound traffic to unknown servers could indicate data exfiltration or command-and-control (C2). Location tracking could be used for targeting or pattern-of-life analysis.Local popularity of the app may mean it’s a normalized surveillance tool.",
+	  },
+	  {
+		text: "Massage Metadata: A couple of PSYOP team members visit a local massage salon. Two days later, targeted phishing SMS messages appear on their military phones. One of them is blurred in the background of a social media video uploaded by salon staff.",
+		correct: ["Prohibit visits to unvetted local establishments off-mission", "Use burner phones with non-attributable SIMs for all local contact", "Immediately rotate SIMs and IMEIs on exposed devices", "Scrub exposed content from social media via takedown requests or countermeasures", "Conduct OSINT sweep for facial recognition hits and tagged metadata", "Enforce airplane mode + Faraday bag protocols when off base", "Educate personnel on passive surveillance risks"],
+		choices: ["Confiscate all personal phones permanently", "Blacklist every massage parlor in the area", "Retask SIGINT assets to monitor SMS from civilian numbers", "Broadcast unit-wide punishment for the incident", "Ban all social media platforms from personal phones", "Fake breakup posts or stories online to confuse adversaries", "Prohibit visits to unvetted local establishments off-mission", "Use burner phones with non-attributable SIMs for all local contact", "Immediately rotate SIMs and IMEIs on exposed devices", "Scrub exposed content from social media via takedown requests or countermeasures", "Conduct OSINT sweep for facial recognition hits and tagged metadata", "Enforce airplane mode + Faraday bag protocols when off base", "Educate personnel on passive surveillance risks"],
+		threat: "Use of personal or unit-assigned phones in unsecured civilian spaces risks phone numbers being logged or leaked. Metadata from call logs, Wi-Fi probes, or payment methods may be shared with collaborators. Targeted phishing likely triggered by SIM leakage or contact scraping. Photo/video exposure creates OPSEC vulnerabilities—identity, morale, location, and timestamp can be derived. Risk of behavioral profiling or coercion material being used by adversary narratives.",
+	  },
+	  {
+		text: "The Honeybar: A PSYOP team member gets intoxicated at a local bar. Later, a deepfaked video surfaces showing them making anti-government statements. A known collaborator linked to adversary Telegram channels operates out of the bar’s back room.",
+		correct: ["Enforce policy: no unsanctioned solo off-duty activity in unsecured locations", "Designate a team public engagement officer / media face", "Educate team on digital deepfake risks", "Monitor OSINT sources for fake video circulation and request takedowns", "Deploy anti-facial recognition accessories when off duty", "Develop and disseminate a proactive counter-narrative if video goes viral", "Implement sober buddy protocols for off-duty ops"],
+		choices: ["Ban all off-duty movement indefinitely", "Mandate live bodycams for all team members at all times", "Fire the team member immediately without verification", "Deploy psychological ops against the bar staff", "Replace team member with AI-generated avatar for all public appearances", "Use facial-altering surgery or prosthetics for team anonymity", "Enforce policy: no unsanctioned solo off-duty activity in unsecured locations", "Designate a team public engagement officer / media face", "Educate team on digital deepfake risks", "Monitor OSINT sources for fake video circulation and request takedowns", "Deploy anti-facial recognition accessories when off duty", "Develop and disseminate a proactive counter-narrative if video goes viral", "Implement sober buddy protocols for off-duty ops"],
+		threat: "Social engineering & HUMINT: Local operatives may bait personnel into speaking freely, recording them secretly. Photo/video surveillance: Footage can be doctored, deepfaked, or selectively leaked for psychological or informational attacks. OPSEC breakdown from alcohol and lack of operational discipline. Facial recognition and voice cloning can be used to generate fabricated disinformation clips. Morale or trust erosion within unit if fake video is believed or spreads.",
+	  },
+	  {
+		text: "Thumb Drive Diplomacy: A civilian offers the team a USB flash drive containing “local maps and comms frequencies.” A team member plugs it into their laptop. Later, the laptop logs strange activity, and a persistent backdoor is discovered.",
+		correct: ["Do not plug unverified USB devices into mission equipment", "**If analysis is necessary, use an air-gapped forensic sandbox", "Use USB write-blockers and sniffers to analyze behavior", "Deploy known-good hash-verified OS images to restore affected device", "Isolate and destroy compromised systems or relegate to honeypot environment", "Implement endpoint protection tools to monitor USB-related events", "Educate team members on USB social engineering tactics"],
+		choices: ["Physically destroy every USB in the AO", "Ban all use of digital maps entirely", "Force daily full forensic scans of all devices", "Interrogate the civilian offering the USB", "Disable all USB ports on team equipment permanently", "Treat the incident as a HUMINT compromise only", "Do not plug unverified USB devices into mission equipment", "**If analysis is necessary, use an air-gapped forensic sandbox", "Use USB write-blockers and sniffers to analyze behavior", "Deploy known-good hash-verified OS images to restore affected device", "Isolate and destroy compromised systems or relegate to honeypot environment", "Implement endpoint protection tools to monitor USB-related events", "Educate team members on USB social engineering tactics"],
+		threat: "USB media from untrusted sources is a classic cyber attack vector (e.g., BadUSB, Rubber Ducky). Drive may contain executable payloads, scripts, or firmware-level malware. Plugging it into an operational device creates local privilege escalation, surveillance, or exfiltration risk. Air-gap hopping, beaconing, or automated backdoor installation could compromise broader team network. Even legitimate-looking files (e.g., PDFs, DOCX) may carry embedded macros or exploit payloads.",
+	  },
+	  {
+		text: "The Landlord Logs Everything: During dinner, the landlord casually reveals knowledge of the team’s MAC addresses, timestamps, and browsing patterns. A discreet GoPro-like camera is later found under a shelf in the living room.",
+		correct: ["Deploy independent, encrypted hotspot or mobile router", "MAC address randomization for all team devices", "Enable DNS encryption DoH or DoT", "Conduct full technical surveillance countermeasure (TSCM) sweep", "Apply thermal/visual shielding to windows and rooms", "Use VLANs and traffic segmentation for internal devices", "Perform log audits and packet capture analysis after compromise"],
+		choices: ["Physically destroy the landlord’s router", "File a criminal complaint mid-deployment", "Install offensive surveillance back at the landlord’s apartment", "Change accommodations immediately", "Assign 24/7 guard inside the building to monitor him", "Ban all internal device communications", "Deploy independent, encrypted hotspot or mobile router", "MAC address randomization for all team devices", "Enable DNS encryption DoH or DoT", "Conduct full technical surveillance countermeasure (TSCM) sweep", "Apply thermal/visual shielding to windows and rooms", "Use VLANs and traffic segmentation for internal devices", "Perform log audits and packet capture analysis after compromise"],
+		threat: "Network surveillance: The landlord has access to the shared router and is logging metadata—DNS queries, device fingerprints, usage patterns. MAC addresses and timestamps allow behavioral profiling, de-anonymization, and long-term tracking.DNS leakage could reveal operational interests or plans. Hidden surveillance camera adds a physical SIGINT/OSINT threat—audio/video collection. Both cyber and visual surveillance indicate either opportunism or adversary coordination.",
+	  },
+	  {
+		text: "Local Hackers for Hire: Across the street from the team’s rental house is a local Internet café run by young wanna-be-hackers who brag about breaching Polish government servers. Their café’s Wi-Fi is visible from inside the safe house. A passive scan reveals signs of Wireshark traffic monitoring on the subnet.",
+		correct: ["Strict network segmentation and outbound firewalling on all devices", "Disable service discovery protocols - mDNS, SSDP, NetBIOS, etc", "MAC randomization + hidden SSID + static IP setup", "Regular RF sweeps for rogue APs and directional interference", "Block all local subnet probing and limit Wi-Fi range to indoors only", "Conduct passive recon on café's infrastructure without engaging", "Educate team on high-threat environments with capable adversaries nearby"],
+		choices: ["Launch a counter-hacking operation against the café", "Physically sabotage their router or building", "Jam their Wi-Fi signal continuously", "Evacuate the safe house immediately", "Assume all nearby civilians are enemy agents", "Switch to entirely offline operations", "Strict network segmentation and outbound firewalling on all devices", "Disable service discovery protocols - mDNS, SSDP, NetBIOS, etc", "MAC randomization + hidden SSID + static IP setup", "Regular RF sweeps for rogue APs and directional interference", "Block all local subnet probing and limit Wi-Fi range to indoors only", "Conduct passive recon on café's infrastructure without engaging", "Educate team on high-threat environments with capable adversaries nearby"],
+		threat: "Cyber adversaries are in physical proximity, possibly conducting passive and active reconnaissance. Their Wi-Fi signal overlaps with the PSYOP detachment’s AO, raising risk of RF interception, spoofed SSIDs, or side-channel attacks. Monitoring tools (e.g., Wireshark) suggest they’re capturing traffic and possibly probing nearby networks. Potential collaboration with hostile services or offering C2-as-a-service for enemy forces. Even power grid proximity or electromagnetic leakage could create a SIGINT risk.",
+	  },
+    ];
+
+  document.addEventListener("DOMContentLoaded", function () {
+    scenarioContainer = document.getElementById("scenarioContainer");
+    resultContainer = document.getElementById("resultContainer");
+    finalContainer = document.getElementById("finalContainer");
+    actionDetails = document.getElementById("actionDetails");
+    threatSummary = document.getElementById("threatSummary");
+  });
+
+  function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+  }
+
+  function startGame() {
+    shuffleArray(scenarios);
+    currentScenario = 0;
+    totalScore = 0;
+    document.querySelector(".welcome").style.display = "none";
+    showScenario();
+  }
+
+  function showScenario() {
+    function shuffleArrayLocal(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    scenarioContainer.innerHTML = '';
+    resultContainer.style.display = 'none';
+    const s = JSON.parse(JSON.stringify(scenarios[currentScenario]));
+    shuffleArrayLocal(s.choices);
+
+    const scenarioText = document.createElement("h2");
+    scenarioText.textContent = s.text;
+
+    const btnGroup = document.createElement("div");
+    btnGroup.className = "buttons";
+
+    const choices = s.choices;
+    choices.forEach((choice, index) => {
+      const btn = document.createElement("button");
+      btn.textContent = choice;
+      btn.onclick = () => btn.classList.toggle("selected");
+      btn.dataset.index = index;
+      btnGroup.appendChild(btn);
+    });
+
+    const submitBtn = document.createElement("button");
+    submitBtn.textContent = "Submit";
+    submitBtn.className = "submit-btn";
+    submitBtn.onclick = function () { evaluateAnswer(s, choices); };
+
+    const threatBtn = document.createElement("button");
+    threatBtn.textContent = "THREAT SUMMARY";
+    threatBtn.className = "submit-btn";
+    threatBtn.onclick = function () { showThreatSummary(s.threat); };
+
+    scenarioContainer.appendChild(scenarioText);
+    scenarioContainer.appendChild(btnGroup);
+    scenarioContainer.appendChild(submitBtn);
+    scenarioContainer.appendChild(threatBtn);
+    scenarioContainer.style.display = "block";
+  }
+
+  function showThreatSummary(summaryText) {
+    threatSummary.innerHTML = `<p>${summaryText}</p>`;
+    document.getElementById("threatSummaryBox").style.display = "block";
+  }
+
+  function closeThreatSummary() {
+    document.getElementById("threatSummaryBox").style.display = "none";
+  }
+
+  function evaluateAnswer(scenarioData, displayedChoices) {
+    const selected = Array.from(scenarioContainer.querySelectorAll("button.selected"));
+    const selectedText = selected.map(b => scenarioData.choices[b.dataset.index]);
+    const correct = scenarioData.correct;
+
+    let correctCount = selectedText.filter(txt => correct.includes(txt)).length;
+    let excessCount = selectedText.filter(txt => !correct.includes(txt)).length;
+    let missedCount = correct.filter(txt => !selectedText.includes(txt)).length;
+
+    let score = Math.max(0, ((correctCount / correct.length) * 100) - (excessCount * 5));
+    totalScore += score;
+
+    scenarioContainer.style.display = "none";
+
+    let actionSummary = `<ul>`;
+    selectedText.forEach(choice => {
+      if (correct.includes(choice)) {
+        actionSummary += `<li style='color: lime;'>✅ ${choice} — Effective</li>`;
+      } else {
+        actionSummary += `<li style='color: orange;'>⚠️ ${choice} — Unnecessary</li>`;
+      }
+    });
+    correct.forEach(item => {
+      if (!selectedText.includes(item)) {
+        actionSummary += `<li style='color: red;'>❌ ${item} — Critical step missed</li>`;
+      }
+    });
+    actionSummary += `</ul>`;
+    actionDetails.innerHTML = actionSummary;
+
+    resultContainer.innerHTML = `<h3>Scenario Result ${currentScenario + 1}</h3>
+      <p class="score">Your Score: ${score.toFixed(1)}%</p>
+      <p>Correct: ${correctCount} / ${correct.length}, Extra: ${excessCount}, Missed: ${missedCount}</p>
+      <button class='submit-btn' onclick='viewActionResults()'>View Actions</button>`;
+    resultContainer.style.display = "block";
+
+    currentScenario++;
+    if (currentScenario < scenarios.length) {
+      const nextBtn = document.createElement("button");
+      nextBtn.textContent = "Next Scenario";
+      nextBtn.className = "submit-btn";
+      nextBtn.onclick = showScenario;
+      resultContainer.appendChild(nextBtn);
+    } else {
+      const finalBtn = document.createElement("button");
+      finalBtn.textContent = "Show Summary";
+      finalBtn.className = "submit-btn";
+      finalBtn.onclick = showFinalResult;
+      resultContainer.appendChild(finalBtn);
+    }
+  }
+
+  function viewActionResults() {
+    document.getElementById("actionResults").style.display = "block";
+  }
+
+  function closeActionResults() {
+    document.getElementById("actionResults").style.display = "none";
+  }
+
+  function showFinalResult() {
+    resultContainer.style.display = "none";
+    finalContainer.style.display = "block";
+    const avg = totalScore / scenarios.length;
+
+    let msg = "", img = "";
+    if (avg >= 95) {
+      msg = "You are extremely safe. Level — Digital Castle!";
+      img = "digcastle.jpg";
+    } else if (avg >= 85) {
+      msg = "You are safe. Level — Digital Fort";
+      img = "digfort.jpg";
+    } else if (avg >= 75) {
+      msg = "You are border-line safe. Level — Barbed wire perimeter";
+      img = "digbarb.img";
+    } else {
+      msg = "You are vulnerable. You have to learn DFP. Level — Sitting duck";
+      img = "digduck.jpg";
+    }
+
+    finalContainer.innerHTML = `<h2>Final Score: ${avg.toFixed(1)}%</h2>
+      <p>${msg}</p>
+      <img src="${img}" alt="Result" class="result-img" />`;
+  }
+</script>
+</body>
+</html>
